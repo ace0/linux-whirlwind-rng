@@ -8,6 +8,7 @@
 
 #include <uapi/linux/random.h>
 
+/*
 extern void add_device_randomness(const void *, unsigned int);
 extern void add_input_randomness(unsigned int type, unsigned int code,
 				 unsigned int value);
@@ -16,7 +17,75 @@ extern void add_interrupt_randomness(int irq, int irq_flags);
 extern void get_random_bytes(void *buf, int nbytes);
 extern void get_random_bytes_arch(void *buf, int nbytes);
 void generate_random_uuid(unsigned char uuid_out[16]);
-extern int random_int_secret_init(void);
+*/
+
+/**
+ * The simplest way to add inputs to the RNG.
+ */
+#define rng_input() rng_input64(__COUNTER__, __COUNTER__)
+
+/**
+ * Add an input to the RNG along with 32-bits of additional (arbitrary) information.
+ */
+#define rng_input32(value) rng_input64(value, __COUNTER__)
+
+/**
+ * Add an input to the RNG along with 2x 32-bit values.
+ */
+#define rng_input64(value1, value2) ww_add_input(__COUNTER__, value1, value2)
+
+/**
+ * Adds an input to the RNG along with a buffer of arbitrary bytes.
+ */
+#define rng_input_buffer(buffer, length) \
+  ww_add_input_buffer(__COUNTER__, buffer, length)
+
+/**
+ * Exported functions.
+ */
+
+void get_random_bytes(void* buffer, const int length);
+unsigned long get_random_ulong(void);
+void generate_random_uuid(unsigned char uuid_out[16]);
+unsigned long randomize_range(const unsigned long start, const unsigned long end,
+                              const unsigned long len);
+void ww_add_input(const u32 source_id, const u32 value1, const u32 value2);
+void ww_add_input_buffer(const u32 source_id, const void* buffer, const int length);
+
+/**
+ * Legacy  interfaces that have been disabled or redirected to common
+ * interfaces  These are re-directed for backwards-compatibility.  Future versions 
+ * could remove these interfaces and replace them with the standard interfaces above.
+ */
+
+ static inline void add_device_randomness(const void* buffer, const int length)
+{
+  rng_input_buffer(buffer, length);
+}
+
+static inline void add_input_randomness(const unsigned int type, 
+					const unsigned int code,
+                                        const unsigned int value)
+{
+  rng_input64((u32)type << 16 | code, (u32)value);
+}
+
+static inline void add_interrupt_randomness(const int irq, const int irq_flags)
+{
+  rng_input64(irq, irq_flags);
+}
+
+static inline void rand_initialize_irq(const int irq) {}
+
+static inline void get_random_bytes_arch(void* buffer, const int length)
+{
+  get_random_bytes(buffer, length);
+}
+
+static inline unsigned int get_random_int(void)
+{
+  return (unsigned int)get_random_ulong();
+}
 
 #ifndef MODULE
 extern const struct file_operations random_fops, urandom_fops;
